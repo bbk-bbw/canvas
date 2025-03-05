@@ -1,1 +1,165 @@
-.
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Browser-Cached Drawing Tool with Undo & Multiple Colors</title>
+  <style>
+    body {
+      text-align: center;
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f0f0f0;
+    }
+    #canvasContainer {
+      display: inline-block;
+      position: relative;
+    }
+    canvas {
+      border: 1px solid #ccc;
+      background-color: white;
+    }
+    .toolbar {
+      margin-top: 10px;
+    }
+    button, input[type="color"] {
+      margin: 0 5px;
+      padding: 10px;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Browser-Cached Drawing Tool</h1>
+  <div id="canvasContainer">
+    <canvas id="canvas" width="800" height="600"></canvas>
+  </div>
+  <div class="toolbar">
+    <!-- Color picker for multiple colors -->
+    <input type="color" id="colorPicker" value="#ff0000" title="Choose color">
+    <!-- Undo, clear, and download buttons -->
+    <button id="undoBtn">Undo</button>
+    <button id="clearBtn">Clear</button>
+    <button id="downloadBtn">Download</button>
+  </div>
+  <script>
+    // Get canvas and its 2D context
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Drawing state and settings
+    let drawing = false;
+    let currentColor = document.getElementById('colorPicker').value;
+    let undoStack = [];
+    
+    // Load background image
+    const img = new Image();
+    img.src = "your-image-url-here.jpg"; // Replace with your background image URL
+    img.onload = function () {
+      // Draw the background and then check if a saved drawing exists
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      loadDrawing();
+      // Save the initial state (background only) in the undo stack
+      saveState();
+    };
+    
+    // Save the current canvas state to the undo stack and localStorage
+    function saveState() {
+      const dataURL = canvas.toDataURL();
+      undoStack.push(dataURL);
+      localStorage.setItem("savedDrawing", dataURL);
+    }
+    
+    // Restore saved drawing from localStorage (if any)
+    function loadDrawing() {
+      const savedDrawing = localStorage.getItem("savedDrawing");
+      if (savedDrawing) {
+        const savedImg = new Image();
+        savedImg.src = savedDrawing;
+        savedImg.onload = function () {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          // Redraw the background first, then the saved drawing
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          ctx.drawImage(savedImg, 0, 0);
+        }
+      }
+    }
+    
+    // Mouse event handlers for drawing on the canvas
+    canvas.addEventListener('mousedown', function(e) {
+      drawing = true;
+      ctx.beginPath();
+      ctx.moveTo(e.offsetX, e.offsetY);
+    });
+    
+    canvas.addEventListener('mousemove', function(e) {
+      if (!drawing) return;
+      ctx.strokeStyle = currentColor;
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.lineTo(e.offsetX, e.offsetY);
+      ctx.stroke();
+    });
+    
+    canvas.addEventListener('mouseup', function(e) {
+      if (!drawing) return;
+      drawing = false;
+      ctx.lineTo(e.offsetX, e.offsetY);
+      ctx.stroke();
+      ctx.closePath();
+      // Save the state after completing the stroke
+      saveState();
+    });
+    
+    // Also end drawing if the pointer leaves the canvas
+    canvas.addEventListener('mouseout', function(e) {
+      if (drawing) {
+        drawing = false;
+        ctx.closePath();
+        saveState();
+      }
+    });
+    
+    // Update current color from the color picker
+    document.getElementById('colorPicker').addEventListener('change', function(e) {
+      currentColor = e.target.value;
+    });
+    
+    // Undo functionality: revert to the previous canvas state
+    document.getElementById('undoBtn').addEventListener('click', function() {
+      if (undoStack.length > 1) {
+        // Remove the last state
+        undoStack.pop();
+        const previousState = undoStack[undoStack.length - 1];
+        const imgUndo = new Image();
+        imgUndo.src = previousState;
+        imgUndo.onload = function() {
+          ctx.clearRect(0, 0, canvas.width, canvas.height);
+          // Redraw the background first, then the previous state
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          ctx.drawImage(imgUndo, 0, 0);
+          // Update the saved drawing in localStorage
+          localStorage.setItem("savedDrawing", previousState);
+        }
+      }
+    });
+    
+    // Clear the canvas: redraw background and reset the undo stack and storage
+    document.getElementById('clearBtn').addEventListener('click', function() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      localStorage.removeItem("savedDrawing");
+      undoStack = [];
+      saveState();
+    });
+    
+    // Download the current canvas as a PNG image
+    document.getElementById('downloadBtn').addEventListener('click', function() {
+      const link = document.createElement('a');
+      link.download = 'drawing.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    });
+  </script>
+</body>
+</html>
