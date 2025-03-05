@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Browser-Cached Drawing Tool with Eraser & Responsive 16:9 Frame</title>
+  <title>Browser-Cached Drawing Tool with Eraser (Adapt to Image Size)</title>
   <style>
     body {
       text-align: center;
@@ -11,23 +11,22 @@
       padding: 20px;
       background-color: #f0f0f0;
     }
-    /* Container maintains a 16:9 aspect ratio and scales responsively */
+    /* Container will size itself to fit the canvases exactly */
     #canvasContainer {
+      display: inline-block;
       position: relative;
-      width: 100%;
-      max-width: 800px;
-      aspect-ratio: 16 / 9;
-      margin: 0 auto;
       border: 1px solid #ccc;
       background-color: #fff;
+      margin: 0 auto;
+      /* If you want to allow scrolling if the image is large, keep overflow visible */
+      overflow: visible;
     }
-    /* Both canvases fill the container */
+    /* Both canvases will be absolutely positioned to overlap perfectly */
     #canvasContainer canvas {
       position: absolute;
       top: 0;
       left: 0;
-      width: 100%;
-      height: 100%;
+      display: block;
     }
     .toolbar {
       margin-top: 10px;
@@ -43,9 +42,9 @@
   <h1>Browser-Cached Drawing Tool</h1>
   <div id="canvasContainer">
     <!-- Background canvas for the image -->
-    <canvas id="bgCanvas" width="800" height="450"></canvas>
+    <canvas id="bgCanvas"></canvas>
     <!-- Drawing canvas for user strokes -->
-    <canvas id="drawCanvas" width="800" height="450"></canvas>
+    <canvas id="drawCanvas"></canvas>
   </div>
   <div class="toolbar">
     <!-- Color picker for multiple colors -->
@@ -57,11 +56,14 @@
     <button id="downloadBtn">Download</button>
   </div>
   <script>
-    // Get canvas elements and their contexts
+    // Get the canvas elements and their contexts
     const bgCanvas = document.getElementById('bgCanvas');
     const bgCtx = bgCanvas.getContext('2d');
     const drawCanvas = document.getElementById('drawCanvas');
     const drawCtx = drawCanvas.getContext('2d');
+
+    // Container that holds both canvases
+    const container = document.getElementById('canvasContainer');
 
     // Drawing state and settings
     let drawing = false;
@@ -69,13 +71,30 @@
     let isEraser = false;
     let undoStack = [];
 
-    // Load background image from the same folder
+    // Load the background image
     const img = new Image();
-    img.src = "img.jpg"; // Ensure "img.jpg" is in the same folder as this HTML file
+    // Make sure "img.jpg" is in the same folder as this HTML file
+    img.src = "img.jpg";
+
+    // When the image finishes loading, adapt the canvases to the image size
     img.onload = function () {
+      // Match the canvas sizes to the image’s natural dimensions
+      bgCanvas.width = img.naturalWidth;
+      bgCanvas.height = img.naturalHeight;
+      drawCanvas.width = img.naturalWidth;
+      drawCanvas.height = img.naturalHeight;
+
+      // Set the container size to match the canvas dimensions
+      container.style.width = img.naturalWidth + "px";
+      container.style.height = img.naturalHeight + "px";
+
+      // Draw the image onto the background canvas
       bgCtx.drawImage(img, 0, 0, bgCanvas.width, bgCanvas.height);
-      loadDrawing(); // Restore saved drawing on the drawing canvas
-      saveState();   // Save the initial (empty) state of the drawing layer
+
+      // Load any previously saved drawing (if exists)
+      loadDrawing();
+      // Save the initial state (blank drawing canvas) into the undo stack
+      saveState();
     };
 
     // Save the current drawing layer state to the undo stack and localStorage
@@ -111,12 +130,9 @@
       drawCtx.lineCap = "round";
       // Choose composite operation based on current tool mode
       drawCtx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
-      if (!isEraser) {
-        drawCtx.strokeStyle = currentColor;
-      } else {
-        // Color doesn't matter in eraser mode
-        drawCtx.strokeStyle = "rgba(0,0,0,1)";
-      }
+      // In eraser mode, stroke color is irrelevant since we are erasing
+      drawCtx.strokeStyle = isEraser ? "rgba(0,0,0,1)" : currentColor;
+
       drawCtx.lineTo(e.offsetX, e.offsetY);
       drawCtx.stroke();
     });
@@ -182,6 +198,8 @@
       // Draw the background and then the drawing layer
       tempCtx.drawImage(bgCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
       tempCtx.drawImage(drawCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
+
+      // Trigger download
       const link = document.createElement('a');
       link.download = 'drawing.png';
       link.href = tempCanvas.toDataURL('image/png');
