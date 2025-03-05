@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Browser-Cached Drawing Tool with Undo & Multiple Colors</title>
+  <title>Browser-Cached Drawing Tool with Eraser & Responsive 16:9 Frame</title>
   <style>
     body {
       text-align: center;
@@ -11,13 +11,23 @@
       padding: 20px;
       background-color: #f0f0f0;
     }
+    /* Container maintains a 16:9 aspect ratio and scales responsively */
     #canvasContainer {
-      display: inline-block;
       position: relative;
-    }
-    canvas {
+      width: 100%;
+      max-width: 800px;
+      aspect-ratio: 16 / 9;
+      margin: 0 auto;
       border: 1px solid #ccc;
-      background-color: white;
+      background-color: #fff;
+    }
+    /* Both canvases fill the container */
+    #canvasContainer canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
     }
     .toolbar {
       margin-top: 10px;
@@ -32,97 +42,113 @@
 <body>
   <h1>Browser-Cached Drawing Tool</h1>
   <div id="canvasContainer">
-    <canvas id="canvas" width="800" height="600"></canvas>
+    <!-- Background canvas for the image -->
+    <canvas id="bgCanvas" width="800" height="450"></canvas>
+    <!-- Drawing canvas for user strokes -->
+    <canvas id="drawCanvas" width="800" height="450"></canvas>
   </div>
   <div class="toolbar">
     <!-- Color picker for multiple colors -->
     <input type="color" id="colorPicker" value="#ff0000" title="Choose color">
-    <!-- Undo, clear, and download buttons -->
+    <!-- Toggle Eraser, then Undo, Clear, and Download buttons -->
+    <button id="eraserBtn">Eraser</button>
     <button id="undoBtn">Undo</button>
     <button id="clearBtn">Clear</button>
     <button id="downloadBtn">Download</button>
   </div>
   <script>
-    // Get canvas and its 2D context
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    
+    // Get canvas elements and their contexts
+    const bgCanvas = document.getElementById('bgCanvas');
+    const bgCtx = bgCanvas.getContext('2d');
+    const drawCanvas = document.getElementById('drawCanvas');
+    const drawCtx = drawCanvas.getContext('2d');
+
     // Drawing state and settings
     let drawing = false;
     let currentColor = document.getElementById('colorPicker').value;
+    let isEraser = false;
     let undoStack = [];
-    
-    // Load background image
+
+    // Load background image from the same folder
     const img = new Image();
-    img.src = "img.jpg";
+    img.src = "img.jpg"; // Ensure "img.jpg" is in the same folder as this HTML file
     img.onload = function () {
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        loadDrawing(); // Restore saved drawing
+      bgCtx.drawImage(img, 0, 0, bgCanvas.width, bgCanvas.height);
+      loadDrawing(); // Restore saved drawing on the drawing canvas
+      saveState();   // Save the initial (empty) state of the drawing layer
     };
-    
-    // Save the current canvas state to the undo stack and localStorage
+
+    // Save the current drawing layer state to the undo stack and localStorage
     function saveState() {
-      const dataURL = canvas.toDataURL();
+      const dataURL = drawCanvas.toDataURL();
       undoStack.push(dataURL);
       localStorage.setItem("savedDrawing", dataURL);
     }
-    
-    // Restore saved drawing from localStorage (if any)
+
+    // Restore saved drawing from localStorage to the drawing canvas
     function loadDrawing() {
       const savedDrawing = localStorage.getItem("savedDrawing");
       if (savedDrawing) {
         const savedImg = new Image();
         savedImg.src = savedDrawing;
         savedImg.onload = function () {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          // Redraw the background first, then the saved drawing
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          ctx.drawImage(savedImg, 0, 0);
-        }
+          drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+          drawCtx.drawImage(savedImg, 0, 0, drawCanvas.width, drawCanvas.height);
+        };
       }
     }
-    
-    // Mouse event handlers for drawing on the canvas
-    canvas.addEventListener('mousedown', function(e) {
+
+    // Mouse event handlers for drawing on the drawing canvas
+    drawCanvas.addEventListener('mousedown', function(e) {
       drawing = true;
-      ctx.beginPath();
-      ctx.moveTo(e.offsetX, e.offsetY);
+      drawCtx.beginPath();
+      drawCtx.moveTo(e.offsetX, e.offsetY);
     });
-    
-    canvas.addEventListener('mousemove', function(e) {
+
+    drawCanvas.addEventListener('mousemove', function(e) {
       if (!drawing) return;
-      ctx.strokeStyle = currentColor;
-      ctx.lineWidth = 3;
-      ctx.lineCap = "round";
-      ctx.lineTo(e.offsetX, e.offsetY);
-      ctx.stroke();
+      drawCtx.lineWidth = 3;
+      drawCtx.lineCap = "round";
+      // Choose composite operation based on current tool mode
+      drawCtx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
+      if (!isEraser) {
+        drawCtx.strokeStyle = currentColor;
+      } else {
+        // Color doesn't matter in eraser mode
+        drawCtx.strokeStyle = "rgba(0,0,0,1)";
+      }
+      drawCtx.lineTo(e.offsetX, e.offsetY);
+      drawCtx.stroke();
     });
-    
-    canvas.addEventListener('mouseup', function(e) {
+
+    drawCanvas.addEventListener('mouseup', function(e) {
       if (!drawing) return;
       drawing = false;
-      ctx.lineTo(e.offsetX, e.offsetY);
-      ctx.stroke();
-      ctx.closePath();
-      // Save the state after completing the stroke
+      drawCtx.closePath();
       saveState();
     });
-    
-    // Also end drawing if the pointer leaves the canvas
-    canvas.addEventListener('mouseout', function(e) {
+
+    drawCanvas.addEventListener('mouseout', function(e) {
       if (drawing) {
         drawing = false;
-        ctx.closePath();
+        drawCtx.closePath();
         saveState();
       }
     });
-    
+
     // Update current color from the color picker
     document.getElementById('colorPicker').addEventListener('change', function(e) {
       currentColor = e.target.value;
     });
-    
-    // Undo functionality: revert to the previous canvas state
+
+    // Toggle eraser functionality
+    document.getElementById('eraserBtn').addEventListener('click', function() {
+      isEraser = !isEraser;
+      // Update button text to reflect the current mode
+      this.textContent = isEraser ? "Pen" : "Eraser";
+    });
+
+    // Undo functionality: revert to the previous drawing state
     document.getElementById('undoBtn').addEventListener('click', function() {
       if (undoStack.length > 1) {
         // Remove the last state
@@ -131,30 +157,34 @@
         const imgUndo = new Image();
         imgUndo.src = previousState;
         imgUndo.onload = function() {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          // Redraw the background first, then the previous state
-          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          ctx.drawImage(imgUndo, 0, 0);
-          // Update the saved drawing in localStorage
+          drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+          drawCtx.drawImage(imgUndo, 0, 0, drawCanvas.width, drawCanvas.height);
           localStorage.setItem("savedDrawing", previousState);
-        }
+        };
       }
     });
-    
-    // Clear the canvas: redraw background and reset the undo stack and storage
+
+    // Clear the drawing canvas: reset drawing layer and undo stack
     document.getElementById('clearBtn').addEventListener('click', function() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
       localStorage.removeItem("savedDrawing");
       undoStack = [];
       saveState();
     });
-    
-    // Download the current canvas as a PNG image
+
+    // Download the composite image (background + drawing)
     document.getElementById('downloadBtn').addEventListener('click', function() {
+      // Create a temporary canvas to combine the layers
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = bgCanvas.width;
+      tempCanvas.height = bgCanvas.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      // Draw the background and then the drawing layer
+      tempCtx.drawImage(bgCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
+      tempCtx.drawImage(drawCanvas, 0, 0, tempCanvas.width, tempCanvas.height);
       const link = document.createElement('a');
       link.download = 'drawing.png';
-      link.href = canvas.toDataURL('image/png');
+      link.href = tempCanvas.toDataURL('image/png');
       link.click();
     });
   </script>
