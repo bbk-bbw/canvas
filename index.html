@@ -73,7 +73,7 @@
 
     // Load the background image
     const img = new Image();
-    // Make sure "img.jpg" is in the same folder as this HTML file
+    // Make sure "img1.png" is in the same folder as this HTML file
     img.src = "img1.png";
 
     // When the image finishes loading, adapt the canvases to the image size
@@ -126,25 +126,32 @@
 
     drawCanvas.addEventListener('mousemove', function(e) {
       if (!drawing) return;
-      drawCtx.lineWidth = 3;
       drawCtx.lineCap = "round";
-      // Choose composite operation based on current tool mode
-      drawCtx.globalCompositeOperation = isEraser ? 'destination-out' : 'source-over';
-      // In eraser mode, stroke color is irrelevant since we are erasing
-      drawCtx.strokeStyle = isEraser ? "rgba(0,0,0,1)" : currentColor;
+
+      if (isEraser) {
+        // Eraser mode: bigger lineWidth and 'destination-out' composite
+        drawCtx.lineWidth = 9;
+        drawCtx.globalCompositeOperation = 'destination-out';
+        drawCtx.strokeStyle = "rgba(0,0,0,1)";
+      } else {
+        // Pen mode: standard lineWidth and 'source-over' composite
+        drawCtx.lineWidth = 3;
+        drawCtx.globalCompositeOperation = 'source-over';
+        drawCtx.strokeStyle = currentColor;
+      }
 
       drawCtx.lineTo(e.offsetX, e.offsetY);
       drawCtx.stroke();
     });
 
-    drawCanvas.addEventListener('mouseup', function(e) {
+    drawCanvas.addEventListener('mouseup', function() {
       if (!drawing) return;
       drawing = false;
       drawCtx.closePath();
       saveState();
     });
 
-    drawCanvas.addEventListener('mouseout', function(e) {
+    drawCanvas.addEventListener('mouseout', function() {
       if (drawing) {
         drawing = false;
         drawCtx.closePath();
