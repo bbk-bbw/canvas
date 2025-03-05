@@ -54,13 +54,10 @@
     
     // Load background image
     const img = new Image();
-    img.src = "your-image-url-here.jpg"; // Replace with your background image URL
+    img.src = "img.jpg";
     img.onload = function () {
-      // Draw the background and then check if a saved drawing exists
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      loadDrawing();
-      // Save the initial state (background only) in the undo stack
-      saveState();
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        loadDrawing(); // Restore saved drawing
     };
     
     // Save the current canvas state to the undo stack and localStorage
